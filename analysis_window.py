@@ -5,12 +5,21 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from analysis_calculations import calculate_all_metrics
 from analysis_plots import update_all_plots, update_six_plots
 import numpy as np
+import sys
+import os
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
 def launch_analysis_window(t, e, h, s, label_info):
     win = Toplevel()
     win.title(f"VOR Analysis — {label_info}")
     win.geometry("1700x950")
     win.configure(bg="#242426")
+    icon_path = resource_path('vvor_icon.ico')
+    win.iconbitmap(icon_path)
 
     # ========== HEADER: Results | Help | Buttons ==========
     header_frame = tk.Frame(win, bg="#242426")
@@ -130,25 +139,32 @@ def launch_analysis_window(t, e, h, s, label_info):
 
     def save_figure():
         path = filedialog.asksaveasfilename(defaultextension=".png",
-                                            filetypes=[("PNG Image", "*.png")])
+                                        filetypes=[("PNG Image", "*.png")])
         if path:
-            metrics = calculate_all_metrics(t, e, h, s)
+            # Aplicar mismo filtro que en update_plots()
+            idx = (t >= tmin[0]) & (t <= tmax[0])
+            t_window = t[idx]
+            e_window = e[idx]
+            h_window = h[idx]
+            
+            metrics = calculate_all_metrics(t_window, e_window, h_window, s)
             # New figure for all 6 plots (3x2)
             savefig, saveaxs = plt.subplots(3, 2, figsize=(16.5, 13))
             savefig.subplots_adjust(hspace=0.38, wspace=0.22, top=0.90, bottom=0.12)
-            update_all_plots(saveaxs, t, e, h, s, metrics, plot4=plot_selector_var.get())
+            update_all_plots(saveaxs, t_window, e_window, h_window, s, metrics, plot4=plot_selector_var.get())
             from analysis_plots import plot_regression_gain, plot_saccade_detection
-            plot_regression_gain(saveaxs[2,0], t, e, h, s, metrics)
-            plot_saccade_detection(saveaxs[2,1], t, e, h, s, metrics)
-            # Prepare result text block for bottom of figure
+            plot_regression_gain(saveaxs[2,0], t_window, e_window, h_window, s, metrics)
+            plot_saccade_detection(saveaxs[2,1], t_window, e_window, h_window, s, metrics)
+
             if not np.isnan(metrics['maxFreqHeadFour']):
                 freq_str = f"Dominant Head Freq: {metrics['maxFreqHeadFour']:.2f} Hz\n"
             else:
                 freq_str = "Dominant Head Freq: - Hz\n"
             summary = (
-                f"Time window: {t[0]:.2f}–{t[-1]:.2f} s (Δt = {t[-1]-t[0]:.2f} s)\n"
-                f"Max Head Vel: {np.nanmax(np.abs(h)) if len(h)>0 else '-'} °/s | "
-                f"Max Eye Vel: {np.nanmax(np.abs(metrics['desac_e'])) if 'desac_e' in metrics and len(metrics['desac_e'])>0 else '-'} °/s\n"
+                f"Time window: {t_window[0]:.2f}–{t_window[-1]:.2f} s (Δt = {t_window[-1]-t_window[0]:.2f} s)\n"
+                f"Max Head Vel: {np.nanmax(np.abs(h_window)):.2f} °/s | "
+                f"Max Eye Vel: {np.nanmax(np.abs(metrics['desac_e'])):.2f} °/s\n"
+                f"Mean Peak Head Vel: {metrics['mean_peak_head']:.2f} ± {metrics['std_peak_head']:.2f} °/s\n"
                 f"{freq_str}"
                 f"SPI Head: {metrics['spi_h']:.2f} | Eye: {metrics['spi_e']:.2f}   SNR Head: {metrics['snr_h']:.1f} dB | Eye: {metrics['snr_e']:.1f} dB\n"
                 f"Gain (slope) L: {metrics['m_pos']:.2f} | R: {metrics['m_neg']:.2f}   "
@@ -156,9 +172,9 @@ def launch_analysis_window(t, e, h, s, label_info):
                 f"Fourier Gain L: {metrics['leftFouGain']:.2f} | R: {metrics['rightFouGain']:.2f}\n"
                 f"PR Score: L = {metrics['lPR']} | R = {metrics['rPR']}"
             )
-            savefig.text(0.5, 0.005, summary, ha='center', fontsize=12, color="#222", wrap=True)
-            savefig.savefig(path, dpi=300)
-            plt.close(savefig)
+        savefig.text(0.5, 0.005, summary, ha='center', fontsize=12, color="#222", wrap=True)
+        savefig.savefig(path, dpi=300)
+        plt.close(savefig)
 
     def update_plots(*args):
         nonlocal summary_text
@@ -178,8 +194,9 @@ def launch_analysis_window(t, e, h, s, label_info):
             freq_str = "Dominant Head Freq: - Hz\n"
         summary = (
             f"Time window: {t_window[0]:.2f}–{t_window[-1]:.2f} s (Δt = {t_window[-1]-t_window[0]:.2f} s)\n"
-            f"Max Head Vel: {np.nanmax(np.abs(h_window)) if len(h_window)>0 else '-'} °/s | "
-            f"Max Eye Vel: {np.nanmax(np.abs(metrics['desac_e'])) if 'desac_e' in metrics and len(metrics['desac_e'])>0 else '-'} °/s\n"
+            f"Max Head Vel: {np.nanmax(np.abs(h)):.2f} °/s | "
+            f"Max Eye Vel: {np.nanmax(np.abs(metrics['desac_e'])):.2f} °/s\n"
+            f"Mean Peak Head Vel: {metrics['mean_peak_head']:.2f} ± {metrics['std_peak_head']:.2f} °/s\n"
             f"{freq_str}"
             f"SPI Head: {metrics['spi_h']:.2f} | Eye: {metrics['spi_e']:.2f}   SNR Head: {metrics['snr_h']:.1f} dB | Eye: {metrics['snr_e']:.1f} dB\n"
             f"Gain (slope) L: {metrics['m_pos']:.2f} | R: {metrics['m_neg']:.2f}   "

@@ -98,6 +98,17 @@ def calculate_all_metrics(t, e, h, s):
     # PR, saccades
     lPR, rPR, saccades = pr_score_vvr(t, e, h, s)
     # Include FFT for plotting
+    # headVelocc mean data
+    mean_peak_head = np.nan
+    std_peak_head = np.nan
+    if len(h) > 3:
+        peaks_max, _ = find_peaks(h, height=30, prominence=10)
+        peaks_min, _ = find_peaks(-h, height=30, prominence=10)
+        all_peaks = np.concatenate((h[peaks_max], h[peaks_min]))
+        all_peaks = np.abs(all_peaks)  # ← Este paso es clave
+        if len(all_peaks) > 1:
+            mean_peak_head = np.mean(all_peaks)
+            std_peak_head = np.std(all_peaks)
     metrics = {
         "desac_e": desac_e,
         "gain_auc_L": gain_auc_L,
@@ -110,6 +121,8 @@ def calculate_all_metrics(t, e, h, s):
         "m_pos": m_pos, "m_neg": m_neg,
         "lPR": lPR, "rPR": rPR,
         "saccades": saccades,
+        "mean_peak_head": mean_peak_head,
+        "std_peak_head": std_peak_head,
         # For FFT plot
         "fH": fH, "P1H": P1H, "fE": fE, "P1E": P1E
     }
